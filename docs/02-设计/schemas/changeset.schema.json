@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://codeatlas.dev/schemas/changeset.schema.json",
+  "title": "CodeAtlas Change Set",
+  "description": "变更集：增量更新的输入。由 VCS diff 得到原始变更，再沿图谱边推导出受影响范围。路径 .codeatlas/changeset.json。",
+  "type": "object",
+  "required": ["schemaVersion", "changesetId", "fromBaseline", "detectedAt", "changedFiles", "impactRadius"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "changesetId": { "type": "string" },
+    "fromBaseline": {
+      "type": "string",
+      "description": "起始版本基线 ID（对应 system.json 的 versionBaseline.baselineId）"
+    },
+    "toCommit": {
+      "type": ["string", "null"],
+      "description": "目标提交。降级模式下可为 null"
+    },
+    "detectedAt": { "type": "string", "format": "date-time" },
+
+    "changedFiles": {
+      "type": "array",
+      "minItems": 0,
+      "description": "原始变更文件清单，来自 git diff --name-status --find-renames",
+      "items": {
+        "type": "object",
+        "required": ["projectId", "path", "status"],
+        "properties": {
+          "projectId": { "type": "string" },
+          "path": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["A", "M", "D", "R", "C"],
+            "description": "A 新增 / M 修改 / D 删除 / R 重命名 / C 复制"
+          },
+          "oldPath": { "type": ["string", "null"], "description": "重命名或复制时的原路径" },
+          "isSensitive": {
+            "type": "boolean",
+            "description": "是否命中模板的 incrementalSensitive（依赖清单 / 配置 / 路由注册 / DDL）"
+          }
+        }
+      }
+    },
+
+    "directlyAffectedNodes": {
+      "type": "array",
+      "description": "直接受影响的节点 ID（按 source.file 反查得到）",
+      "items": { "type": "string" }
+    },
+
+    "impactRadius": {
+      "type": "object",
+      "description": "沿图谱边扩散后的影响半径",
+      "required": ["mustRerun"],
+      "properties": {
+        "mustRerun": {
+          "type": "array",
+          "description": "最小重跑集：必须重新梳理的模块 ID",
+          "items": { "type": "string" }
+        },
+        "contractRecheck": {
+          "type": "array",
+          "description": "需跨项目重校验的契约边",
+          "items": {
+            "type": "object",
+            "required": ["edgeId", "reason"],
+            "properties": {
+              "edgeId": { "type": "string" },
+              "type": { "type": "string", "examples": ["http-call", "exposes"] },
+              "reason": { "type": "string" }
+            }
+          }
+        },
+        "dataRecheck": {
+          "type": "array",
+          "description": "需重算的数据访问子图",
+          "items": {
+            "type": "object",
+            "required": ["table", "reason"],
+            "properties": {
+              "table": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        },
+        "boundaryTouched": {
+          "type": "array",
+          "description": "受影响的边界节点（系统外依赖的调用关系发生变化）",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "skipModules": {
+      "type": "array",
+      "description": "未受影响、本轮跳过的模块 ID。其 confirmed 状态必须保留",
+      "items": { "type": "string" }
+    },
+
+    "structuralChange": {
+      "type": "boolean",
+      "default": false,
+      "description": "是否命中结构性变更（新增/删除项目、依赖大改、目录重构）"
+    },
+    "fullRerunRequired": {
+      "type": "boolean",
+      "default": false,
+      "description": "为 true 时最小重跑集失效，必须全量重跑"
+    },
+    "fullRerunReasons": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "触发全量重跑的具体信号"
+    },
+
+    "dryRun": {
+      "type": "boolean",
+      "default": false,
+      "description": "是否为 --dry-run（仅推导不执行）"
+    },
+
+    "appliedAt": { "type": ["string", "null"], "format": "date-time" },
+    "resultGraphVersion": {
+      "type": ["string", "null"],
+      "description": "增量执行后产生的新图谱版本号"
+    }
+  }
+}

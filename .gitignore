@@ -1,0 +1,20 @@
+# ---- macOS ----
+.DS_Store
+
+# ---- 依赖与构建产物 ----
+node_modules/
+dist/
+build/
+out/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# ---- 日志与临时文件 ----
+*.log
+*.tmp
+*.swp
+
+# ---- 工具产物（CodeAtlas 在目标系统中生成，不入库）----
+.codeatlas/

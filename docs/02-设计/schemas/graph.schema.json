@@ -1,0 +1,303 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://codeatlas.dev/schemas/graph.schema.json",
+  "title": "CodeAtlas Graph",
+  "description": "合并后的统一系统图谱。阶段 4 产物，路径 .codeatlas/graph.json。所有维度视图均由该文件按规则投影生成。",
+  "type": "object",
+  "required": ["schemaVersion", "systemId", "graphVersion", "generatedAt", "nodes", "edges"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "systemId": { "type": "string", "description": "所属系统 ID，对应 system.json 的 systemId" },
+    "graphVersion": { "type": "string", "description": "图谱版本号，每次全量或增量后递增" },
+    "basedOn": {
+      "type": "object",
+      "description": "本图谱绑定的代码版本基线摘要（详见 system.json 的 versionBaseline）",
+      "properties": {
+        "baselineId": { "type": "string" },
+        "vcs": { "type": "string", "enum": ["git", "svn", "hg", "hash-only", "none"] },
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "projectId": { "type": "string" },
+              "commit": { "type": ["string", "null"] },
+              "branch": { "type": ["string", "null"] },
+              "dirty": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "mergedFrom": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "合并来源的 link-*.json 文件名列表"
+    },
+
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/edge" }
+    },
+    "chains": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/chain" }
+    },
+
+    "dimensions": {
+      "type": "array",
+      "description": "可用的图谱维度定义，供前端渲染器直接消费",
+      "items": { "$ref": "#/definitions/dimension" }
+    },
+
+    "health": {
+      "type": "object",
+      "description": "图谱健康度自检结果",
+      "properties": {
+        "orphanNodes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "无任何边连接的节点"
+        },
+        "danglingEdges": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "端点不存在的边"
+        },
+        "cycles": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "description": "循环依赖环，每个环是节点 ID 序列"
+        },
+        "layerViolations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "edgeId": { "type": "string" },
+              "rule": { "type": "string" },
+              "detail": { "type": "string" }
+            }
+          },
+          "description": "跨层反向调用等架构违规"
+        },
+        "orphanEndpoints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "无任何前端调用的接口（幽灵接口）"
+        },
+        "ghostCalls": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "前端调用了但后端不存在的接口"
+        },
+        "unusedTables": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "任何代码都未读写的表"
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "综合健康度评分"
+        }
+      }
+    },
+
+    "stats": {
+      "type": "object",
+      "properties": {
+        "nodeCount": { "type": "integer", "minimum": 0 },
+        "edgeCount": { "type": "integer", "minimum": 0 },
+        "projectCount": { "type": "integer", "minimum": 0 },
+        "moduleCount": { "type": "integer", "minimum": 0 },
+        "chainCount": { "type": "integer", "minimum": 0 },
+        "byConfidence": {
+          "type": "object",
+          "properties": {
+            "certain": { "type": "integer" },
+            "probable": { "type": "integer" },
+            "speculative": { "type": "integer" }
+          }
+        }
+      }
+    },
+
+    "pendingConfirmation": {
+      "type": "array",
+      "description": "所有 speculative 的节点与边，需人工裁决",
+      "items": {
+        "type": "object",
+        "required": ["refId", "refType", "reason"],
+        "properties": {
+          "refId": { "type": "string" },
+          "refType": { "type": "string", "enum": ["node", "edge"] },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  },
+
+  "definitions": {
+    "node": {
+      "type": "object",
+      "required": ["id", "type", "name", "projectId", "layer", "source"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "project", "module", "package", "component", "store", "apiClient",
+            "endpoint", "controller", "service", "repository", "entity",
+            "table", "column", "job", "topic", "external"
+          ]
+        },
+        "name": { "type": "string" },
+        "label": { "type": "string" },
+        "projectId": { "type": "string" },
+        "moduleId": { "type": ["string", "null"] },
+        "layer": {
+          "type": "string",
+          "enum": ["ui", "api", "controller", "service", "repository", "entity", "db", "job", "shared", "unknown"]
+        },
+        "source": {
+          "type": "object",
+          "required": ["file"],
+          "properties": {
+            "file": { "type": "string" },
+            "startLine": { "type": "integer", "minimum": 1 },
+            "endLine": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "meta": { "type": "object" },
+        "confidence": { "type": "string", "enum": ["certain", "probable", "speculative"] },
+        "humanVerified": { "type": "boolean", "default": false },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "metrics": {
+          "type": "object",
+          "description": "图算法指标，组装阶段计算",
+          "properties": {
+            "fanIn": { "type": "integer", "minimum": 0 },
+            "fanOut": { "type": "integer", "minimum": 0 },
+            "centrality": { "type": "number" }
+          }
+        }
+      }
+    },
+
+    "edge": {
+      "type": "object",
+      "required": ["id", "from", "to", "type", "confidence"],
+      "properties": {
+        "id": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "contains", "imports", "implements", "extends", "calls",
+            "reads", "writes", "maps-to", "exposes", "http-call",
+            "renders", "uses-store", "triggers", "publishes", "subscribes", "fk",
+            "leaves-system"
+          ]
+        },
+        "label": { "type": ["string", "null"] },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["file"],
+            "properties": {
+              "file": { "type": "string" },
+              "line": { "type": "integer", "minimum": 1 },
+              "snippet": { "type": "string" },
+              "strategy": { "type": "string" }
+            }
+          }
+        },
+        "confidence": { "type": "string", "enum": ["certain", "probable", "speculative"] },
+        "humanVerified": { "type": "boolean", "default": false },
+        "crossProject": { "type": "boolean", "default": false },
+        "weight": { "type": "number", "minimum": 0 },
+        "aggregated": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否为多条原始边聚合后的边（D6 模块依赖图）"
+        },
+        "aggregatedFrom": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "chain": {
+      "type": "object",
+      "required": ["chainId", "name", "path"],
+      "properties": {
+        "chainId": { "type": "string" },
+        "name": { "type": "string" },
+        "moduleId": { "type": ["string", "null"] },
+        "trigger": { "type": "string" },
+        "path": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+        "breakpoints": { "type": "array", "items": { "type": "string" } },
+        "confidence": { "type": "string", "enum": ["certain", "probable", "speculative"] }
+      }
+    },
+
+    "dimension": {
+      "type": "object",
+      "required": ["id", "name", "nodeTypes", "edgeTypes", "layout"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": ["D1-architecture", "D2-api-interaction", "D3-data-access", "D4-e2e-trace", "D5-data-model", "D6-module-dependency"]
+        },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "question": { "type": "string", "description": "该维度回答的核心问题" },
+        "nodeTypes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "节点类型白名单"
+        },
+        "edgeTypes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "边类型白名单"
+        },
+        "layout": {
+          "type": "string",
+          "enum": ["hierarchical", "dagre", "force", "grouped-bipartite", "lateral-flow", "swimlane", "er", "timeline"]
+        },
+        "defaultFilters": {
+          "type": "object",
+          "properties": {
+            "collapseLevel": { "type": "string", "enum": ["project", "module", "class", "method"] },
+            "hideSpeculative": { "type": "boolean" },
+            "maxNodes": { "type": "integer" }
+          }
+        },
+        "visualEncoding": {
+          "type": "object",
+          "properties": {
+            "shapeBy": { "type": "string" },
+            "colorBy": { "type": "string" },
+            "borderBy": { "type": "string" },
+            "edgeStyleBy": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

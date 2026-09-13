@@ -1,0 +1,267 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://codeatlas.dev/schemas/module-index.schema.json",
+  "title": "CodeAtlas Module Index",
+  "description": "项目解构产物：模块、API、组件、数据模型四类清单。阶段 2 产物，路径 .codeatlas/projects/<projectId>/module-index.json",
+  "type": "object",
+  "required": ["schemaVersion", "projectId", "generatedAt", "modules"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "projectId": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "templateIds": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+
+    "modules": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/module" }
+    },
+
+    "endpoints": {
+      "type": "array",
+      "description": "API 清单（后端）",
+      "items": { "$ref": "#/definitions/endpoint" }
+    },
+
+    "components": {
+      "type": "array",
+      "description": "组件清单（前端）",
+      "items": { "$ref": "#/definitions/component" }
+    },
+
+    "dataModels": {
+      "type": "array",
+      "description": "数据模型清单（实体 + 表）",
+      "items": { "$ref": "#/definitions/dataModel" }
+    },
+
+    "stats": {
+      "type": "object",
+      "properties": {
+        "moduleCount": { "type": "integer", "minimum": 0 },
+        "endpointCount": { "type": "integer", "minimum": 0 },
+        "componentCount": { "type": "integer", "minimum": 0 },
+        "tableCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "openQuestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["question", "severity"],
+        "properties": {
+          "question": { "type": "string" },
+          "severity": { "type": "string", "enum": ["high", "medium", "low"] },
+          "target": { "type": "string", "description": "关联的 nodeId 或 file" }
+        }
+      }
+    },
+
+    "confirmedByUser": { "type": "boolean", "default": false },
+    "confirmedAt": { "type": ["string", "null"], "format": "date-time" }
+  },
+
+  "definitions": {
+    "source": {
+      "type": "object",
+      "required": ["file"],
+      "properties": {
+        "file": { "type": "string" },
+        "startLine": { "type": "integer", "minimum": 1 },
+        "endLine": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "module": {
+      "type": "object",
+      "required": ["moduleId", "name", "layers"],
+      "properties": {
+        "moduleId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "boundary": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["package", "directory", "namespace"] },
+            "value": { "type": "string" },
+            "boundaryConfidence": { "type": "string", "enum": ["certain", "probable", "heuristic"] }
+          }
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["ui", "api", "controller", "service", "repository", "entity", "db", "job", "shared", "unknown"]
+          }
+        },
+        "entryPoints": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/source" }
+        },
+        "exposedInterfaces": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "tracingStatus": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "dumped", "confirmed", "failed"],
+          "default": "pending"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["high", "medium", "low"],
+          "description": "梳理优先级，核心模块优先"
+        }
+      }
+    },
+
+    "endpoint": {
+      "type": "object",
+      "required": ["nodeId", "method", "path", "source"],
+      "properties": {
+        "nodeId": { "type": "string" },
+        "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "WS", "RPC", "GRAPHQL"] },
+        "path": { "type": "string" },
+        "fullPath": { "type": "string", "description": "含网关/全局前缀的完整路径" },
+        "handler": { "type": "string", "description": "所属 Controller/Handler 类与方法名" },
+        "controllerNodeId": { "type": "string" },
+        "moduleId": { "type": ["string", "null"] },
+        "requestParams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "in": { "type": "string", "enum": ["path", "query", "body", "header", "form"] },
+              "type": { "type": "string" },
+              "required": { "type": "boolean" }
+            }
+          }
+        },
+        "responseShape": {
+          "type": ["object", "null"],
+          "description": "响应结构（可解析时给出 JSON-ish 描述）"
+        },
+        "dtoRefs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "关联的 DTO/VO 节点 ID"
+        },
+        "auth": {
+          "type": ["string", "null"],
+          "examples": ["none", "jwt", "session", "@PreAuthorize('hasRole(ADMIN)')"]
+        },
+        "source": { "$ref": "#/definitions/source" },
+        "confidence": { "type": "string", "enum": ["certain", "probable", "speculative"] }
+      }
+    },
+
+    "component": {
+      "type": "object",
+      "required": ["nodeId", "name", "componentType", "source"],
+      "properties": {
+        "nodeId": { "type": "string" },
+        "name": { "type": "string" },
+        "componentType": {
+          "type": "string",
+          "enum": ["page", "layout", "container", "presentational", "hook", "util", "store"]
+        },
+        "route": { "type": ["string", "null"], "description": "若为页面，对应的前端路由路径" },
+        "moduleId": { "type": ["string", "null"] },
+        "props": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "required": { "type": "boolean" }
+            }
+          }
+        },
+        "emits": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "usedStores": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "使用的 store 节点 ID"
+        },
+        "apiCalls": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "发起的 apiClient 节点 ID"
+        },
+        "childComponents": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "source": { "$ref": "#/definitions/source" },
+        "confidence": { "type": "string", "enum": ["certain", "probable", "speculative"] }
+      }
+    },
+
+    "dataModel": {
+      "type": "object",
+      "required": ["nodeId", "name", "kind"],
+      "properties": {
+        "nodeId": { "type": "string" },
+        "name": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": ["entity", "table", "collection", "view", "dto"]
+        },
+        "tableName": { "type": ["string", "null"] },
+        "moduleId": { "type": ["string", "null"] },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "nullable": { "type": "boolean" },
+              "primaryKey": { "type": "boolean" },
+              "foreignKey": {
+                "type": ["object", "null"],
+                "properties": {
+                  "table": { "type": "string" },
+                  "column": { "type": "string" }
+                }
+              },
+              "comment": { "type": "string" },
+              "sourceLine": { "type": "integer" }
+            }
+          }
+        },
+        "indexes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "columns": { "type": "array", "items": { "type": "string" } },
+              "unique": { "type": "boolean" }
+            }
+          }
+        },
+        "definitionSource": {
+          "type": "string",
+          "enum": ["ddl", "orm-annotation", "orm-class", "migration", "inferred"],
+          "description": "定义来源；ddl 与 orm 同时存在时以 ddl 为准"
+        },
+        "conflictsWith": {
+          "type": ["string", "null"],
+          "description": "若 ORM 与 DDL 定义不一致，记录冲突对象 nodeId"
+        },
+        "source": { "$ref": "#/definitions/source" },
+        "confidence": { "type": "string", "enum": ["certain", "probable", "speculative"] }
+      }
+    }
+  }
+}

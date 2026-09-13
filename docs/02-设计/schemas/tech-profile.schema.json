@@ -1,0 +1,142 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://codeatlas.dev/schemas/tech-profile.schema.json",
+  "title": "CodeAtlas Tech Profile",
+  "description": "单个项目的技术栈判定结果。阶段 1 产物，路径 .codeatlas/projects/<projectId>/tech-profile.json",
+  "type": "object",
+  "required": ["schemaVersion", "projectId", "generatedAt", "detection", "templateMatch"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "projectId": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+
+    "detection": {
+      "type": "object",
+      "required": ["language", "confidence"],
+      "description": "技术栈判定主体",
+      "properties": {
+        "language": {
+          "type": "string",
+          "description": "主语言，如 javascript / typescript / java / python / go / php",
+          "examples": ["typescript", "java", "python", "go"]
+        },
+        "secondaryLanguages": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "framework": {
+          "type": ["string", "null"],
+          "examples": ["vue", "react", "nextjs", "spring-boot", "fastapi", "django", "flask", "express", "nestjs", "gin"]
+        },
+        "frameworkVersion": { "type": ["string", "null"] },
+        "runtime": { "type": ["string", "null"], "examples": ["node@20", "jdk@17", "python@3.11"] },
+        "packageManager": { "type": ["string", "null"], "examples": ["npm", "pnpm", "yarn", "maven", "gradle", "pip", "poetry", "go-mod"] },
+        "buildTool": { "type": ["string", "null"], "examples": ["vite", "webpack", "rollup", "maven", "gradle"] },
+        "router": { "type": ["string", "null"], "examples": ["vue-router", "react-router", "next-app-router", "spring-mvc"] },
+        "stateManagement": { "type": ["string", "null"], "examples": ["pinia", "vuex", "redux", "zustand", "none"] },
+        "orm": { "type": ["string", "null"], "examples": ["jpa", "mybatis", "sqlalchemy", "django-orm", "prisma", "typeorm", "mongoose", "gorm", "none"] },
+        "uiLibrary": { "type": ["string", "null"], "examples": ["element-plus", "ant-design", "naive-ui", "mui", "none"] },
+        "testFramework": { "type": ["string", "null"], "examples": ["vitest", "jest", "pytest", "junit", "none"] },
+        "confidence": {
+          "type": "string",
+          "enum": ["certain", "probable", "speculative"]
+        }
+      }
+    },
+
+    "evidence": {
+      "type": "array",
+      "description": "每条判定结论的依据，按优先级排序",
+      "items": {
+        "type": "object",
+        "required": ["sourceType", "file", "signal"],
+        "properties": {
+          "sourceType": {
+            "type": "string",
+            "enum": ["dependency-manifest", "config-file", "directory-structure", "file-extension", "source-code"]
+          },
+          "file": { "type": "string" },
+          "field": { "type": "string" },
+          "signal": { "type": "string", "description": "命中的具体信号，如依赖名或配置项" },
+          "value": { "type": "string" },
+          "weight": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+
+    "templateMatch": {
+      "type": "object",
+      "required": ["matched"],
+      "properties": {
+        "matched": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["templateId"],
+            "properties": {
+              "templateId": { "type": "string", "examples": ["spring-boot", "vue3"] },
+              "templateVersion": { "type": "string" },
+              "scope": { "type": "string", "description": "生效范围：whole-project 或子路径" },
+              "targetPath": { "type": ["string", "null"] },
+              "confidence": { "type": "string", "enum": ["certain", "probable", "speculative"] }
+            }
+          }
+        },
+        "fallbackUsed": {
+          "type": "boolean",
+          "description": "是否降级到通用模板（低精度模式）"
+        },
+        "fallbackReason": { "type": ["string", "null"] }
+      }
+    },
+
+    "mixedStack": {
+      "type": "array",
+      "description": "混合技术栈场景：同一项目内按子路径分别判定的结果",
+      "items": {
+        "type": "object",
+        "required": ["path", "language", "framework"],
+        "properties": {
+          "path": { "type": "string" },
+          "language": { "type": "string" },
+          "framework": { "type": ["string", "null"] },
+          "frameworkVersion": { "type": ["string", "null"] }
+        }
+      }
+    },
+
+    "overrides": {
+      "type": "array",
+      "description": "用户手工覆写的判定结果，保留审计轨迹",
+      "items": {
+        "type": "object",
+        "required": ["field", "oldValue", "newValue", "overriddenAt"],
+        "properties": {
+          "field": { "type": "string" },
+          "oldValue": {},
+          "newValue": {},
+          "reason": { "type": "string" },
+          "overriddenBy": { "type": "string" },
+          "overriddenAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+
+    "openQuestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["question", "severity"],
+        "properties": {
+          "question": { "type": "string" },
+          "severity": { "type": "string", "enum": ["high", "medium", "low"] },
+          "context": { "type": "string" }
+        }
+      }
+    },
+
+    "confirmedByUser": { "type": "boolean", "default": false },
+    "confirmedAt": { "type": ["string", "null"], "format": "date-time" },
+    "confirmedBy": { "type": ["string", "null"] }
+  }
+}

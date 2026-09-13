@@ -1,0 +1,185 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://codeatlas.dev/schemas/system.schema.json",
+  "title": "CodeAtlas System Declaration",
+  "description": "系统声明：定义 Agent 的工作边界（白名单）与图谱绑定的代码版本基线。路径 .codeatlas/system.json。取代 v0.1 的 workspace.json。",
+  "type": "object",
+  "required": ["schemaVersion", "systemId", "systemName", "rootDir", "scope", "versionBaseline"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "systemId": { "type": "string", "description": "系统唯一标识，创建后不变" },
+    "systemName": { "type": "string" },
+    "description": { "type": "string" },
+    "rootDir": { "type": "string", "description": "工作空间根目录的绝对路径" },
+
+    "scope": {
+      "type": "object",
+      "description": "★ 边界定义：Agent 只允许访问 include 内、且不命中 exclude 的路径",
+      "required": ["include", "guard"],
+      "properties": {
+        "include": {
+          "type": "array",
+          "minItems": 1,
+          "description": "项目白名单。这是图谱合法性的唯一依据",
+          "items": {
+            "type": "object",
+            "required": ["projectId", "path"],
+            "properties": {
+              "projectId": { "type": "string" },
+              "path": { "type": "string", "description": "相对于 rootDir 的路径" },
+              "role": {
+                "type": "string",
+                "enum": ["frontend", "backend", "gateway", "shared-lib", "db-scripts", "mobile", "unknown"]
+              },
+              "enabled": { "type": "boolean", "default": true },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "exclude": {
+          "type": "array",
+          "description": "排除规则，优先级高于 include。支持 glob",
+          "items": { "type": "string" }
+        },
+        "autoExclude": {
+          "type": "array",
+          "description": "自动排除的目录名，无需用户配置",
+          "items": { "type": "string" },
+          "default": ["node_modules", ".git", "dist", "build", "target", "vendor", ".venv", "__pycache__"]
+        },
+        "guard": {
+          "type": "object",
+          "description": "范围守卫配置",
+          "required": ["mode"],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["strict", "warn"],
+              "description": "strict = 越界即阻断；warn = 仅告警放行（不推荐）"
+            },
+            "onViolation": {
+              "type": "string",
+              "enum": ["block-and-log", "block", "log"],
+              "default": "block-and-log"
+            },
+            "allowReadOutside": { "type": "boolean", "default": false },
+            "publicDependencyAllowlist": {
+              "type": "array",
+              "description": "被视为平台能力、不建 external 节点的第三方依赖或命名空间",
+              "items": { "type": "string" },
+              "examples": [["node_modules/**", "org.springframework.**", "java.*", "react", "vue"]]
+            }
+          }
+        }
+      }
+    },
+
+    "versionBaseline": {
+      "type": "object",
+      "description": "★ 版本基线：图谱对应的代码版本锚点，增量更新的起点",
+      "required": ["baselineId", "capturedAt", "graphVersion", "projects"],
+      "properties": {
+        "baselineId": { "type": "string" },
+        "capturedAt": { "type": "string", "format": "date-time" },
+        "vcs": {
+          "type": "string",
+          "enum": ["git", "svn", "hg", "hash-only", "none"],
+          "description": "hash-only 表示无 VCS，降级为文件哈希基线"
+        },
+        "graphVersion": { "type": "string", "description": "本次基线对应的图谱版本号" },
+        "projects": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["projectId"],
+            "properties": {
+              "projectId": { "type": "string" },
+              "commit": { "type": ["string", "null"], "description": "VCS 提交哈希，降级模式下为 null" },
+              "branch": { "type": ["string", "null"] },
+              "tag": { "type": ["string", "null"] },
+              "dirty": {
+                "type": "boolean",
+                "default": false,
+                "description": "是否存在未提交改动"
+              },
+              "fallbackHash": {
+                "type": ["string", "null"],
+                "description": "无 VCS 时对项目文件树计算的内容哈希"
+              },
+              "precisionNote": {
+                "type": ["string", "null"],
+                "description": "精度说明，如'该项目非 Git 仓库，增量精度较低'"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "boundaryNodes": {
+      "type": "array",
+      "description": "已识别的系统边界外依赖，仅记录关系，不展开内部",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "kind"],
+        "properties": {
+          "id": { "type": "string", "examples": ["external:pay-gateway"] },
+          "name": { "type": "string" },
+          "kind": {
+            "type": "string",
+            "enum": ["third-party-api", "sibling-system", "shared-db", "external-mq", "external-lib", "unknown"]
+          },
+          "target": { "type": ["string", "null"], "description": "可定位的目标，如域名或服务名" },
+          "note": { "type": "string" },
+          "implicitCoupling": {
+            "type": "boolean",
+            "description": "是否为隐式耦合（如共享数据库表），此类需要额外风险提示"
+          }
+        }
+      }
+    },
+
+    "scopeHistory": {
+      "type": "array",
+      "description": "边界变更历史。每条记录都应能对应一次影响分析",
+      "items": {
+        "type": "object",
+        "required": ["at", "action"],
+        "properties": {
+          "at": { "type": "string", "format": "date-time" },
+          "action": { "type": "string", "enum": ["create", "expand", "shrink", "exclude", "restore"] },
+          "detail": { "type": "string" },
+          "affectedProjects": { "type": "array", "items": { "type": "string" } },
+          "invalidatedGraphParts": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "因边界变化而失效的图谱部分"
+          },
+          "by": { "type": "string" }
+        }
+      }
+    },
+
+    "auditSummary": {
+      "type": "object",
+      "description": "最近一次运行的范围审计摘要",
+      "properties": {
+        "lastRunAt": { "type": "string", "format": "date-time" },
+        "violationCount": { "type": "integer", "minimum": 0 },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string" },
+              "stage": { "type": "string" },
+              "at": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

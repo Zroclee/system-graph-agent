@@ -1,0 +1,250 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://codeatlas.dev/schemas/link.schema.json",
+  "title": "CodeAtlas Module Link",
+  "description": "单模块链路梳理产物。阶段 3 产物，路径 .codeatlas/links/<moduleId>.json。每个模块一个检查点，落盘后等待人工确认。",
+  "type": "object",
+  "required": ["schemaVersion", "moduleId", "projectId", "generatedAt", "status", "nodes", "edges"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "moduleId": { "type": "string" },
+    "projectId": { "type": "string" },
+    "moduleName": { "type": "string" },
+    "basedOn": {
+      "type": "object",
+      "description": "本产物依据的代码版本基线（对应 system.json 的 versionBaseline）",
+      "properties": {
+        "baselineId": { "type": "string" },
+        "commit": { "type": ["string", "null"] },
+        "fileHashes": {
+          "type": "object",
+          "description": "本模块涉及文件的内容哈希快照，供增量更新判断是否需要重跑",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "该模块被梳理的轮次，人工修正后递增"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["in_progress", "dumped", "confirmed", "failed"],
+      "description": "dumped 表示已落盘待确认；confirmed 表示人工已确认"
+    },
+    "summary": {
+      "type": "string",
+      "description": "本模块一句话概述，供上下文快速注入"
+    },
+
+    "contextDigest": {
+      "type": "object",
+      "description": "供下一轮 LLM 上下文注入的精简摘要（避免全量重读）",
+      "properties": {
+        "tables": { "type": "array", "items": { "type": "string" } },
+        "endpoints": { "type": "array", "items": { "type": "string" } },
+        "frontendTouches": { "type": "array", "items": { "type": "string" } },
+        "keyRules": { "type": "array", "items": { "type": "string" } },
+        "tokenEstimate": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/node" }
+    },
+
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/edge" }
+    },
+
+    "chains": {
+      "type": "array",
+      "description": "端到端业务链路（D4 维度的数据来源）",
+      "items": { "$ref": "#/definitions/chain" }
+    },
+
+    "businessLogic": {
+      "type": "array",
+      "description": "业务逻辑语义说明，绑定到具体节点",
+      "items": {
+        "type": "object",
+        "required": ["nodeId", "description"],
+        "properties": {
+          "nodeId": { "type": "string" },
+          "description": { "type": "string" },
+          "rules": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "关键业务规则，如'库存不足时抛异常'"
+          },
+          "sideEffects": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "副作用，如发消息、写日志、调外部服务"
+          },
+          "confidence": { "type": "string", "enum": ["certain", "probable", "speculative"] }
+        }
+      }
+    },
+
+    "coverage": {
+      "type": "object",
+      "description": "本模块梳理的覆盖情况自检",
+      "properties": {
+        "tablesCovered": { "type": "array", "items": { "type": "string" } },
+        "endpointsCovered": { "type": "array", "items": { "type": "string" } },
+        "componentsCovered": { "type": "array", "items": { "type": "string" } },
+        "unresolved": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "未能串入链路的节点，需在确认文档中说明原因"
+        }
+      }
+    },
+
+    "openQuestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["question", "severity"],
+        "properties": {
+          "question": { "type": "string" },
+          "severity": { "type": "string", "enum": ["high", "medium", "low"] },
+          "target": { "type": "string" },
+          "suggestedAnswer": { "type": "string" }
+        }
+      }
+    },
+
+    "confirmedByUser": { "type": "boolean", "default": false },
+    "confirmedAt": { "type": ["string", "null"], "format": "date-time" },
+    "confirmedBy": { "type": ["string", "null"] },
+    "confirmNotes": {
+      "type": "array",
+      "description": "人工确认时提出的修正意见，已回写至 nodes/edges",
+      "items": {
+        "type": "object",
+        "properties": {
+          "note": { "type": "string" },
+          "applied": { "type": "boolean" },
+          "at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+
+  "definitions": {
+    "node": {
+      "type": "object",
+      "required": ["id", "type", "name", "projectId", "layer"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "project", "module", "package", "component", "store", "apiClient",
+            "endpoint", "controller", "service", "repository", "entity",
+            "table", "column", "job", "topic", "external"
+          ]
+        },
+        "name": { "type": "string" },
+        "label": { "type": "string", "description": "展示名（可为中文业务名）" },
+        "projectId": { "type": "string" },
+        "moduleId": { "type": ["string", "null"] },
+        "layer": {
+          "type": "string",
+          "enum": ["ui", "api", "controller", "service", "repository", "entity", "db", "job", "shared", "unknown"]
+        },
+        "source": {
+          "type": "object",
+          "required": ["file"],
+          "properties": {
+            "file": { "type": "string" },
+            "startLine": { "type": "integer", "minimum": 1 },
+            "endLine": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "meta": { "type": "object" },
+        "confidence": { "type": "string", "enum": ["certain", "probable", "speculative"] },
+        "humanVerified": { "type": "boolean", "default": false },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "edge": {
+      "type": "object",
+      "required": ["id", "from", "to", "type", "confidence"],
+      "properties": {
+        "id": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "contains", "imports", "implements", "extends", "calls",
+            "reads", "writes", "maps-to", "exposes", "http-call",
+            "renders", "uses-store", "triggers", "publishes", "subscribes", "fk",
+            "leaves-system"
+          ]
+        },
+        "label": { "type": ["string", "null"] },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["file"],
+            "properties": {
+              "file": { "type": "string" },
+              "line": { "type": "integer", "minimum": 1 },
+              "snippet": { "type": "string" },
+              "strategy": {
+                "type": "string",
+                "enum": ["ast", "regex", "config", "path-match", "template-match",
+                         "semantic-match", "param-match", "llm-inference", "human"]
+              }
+            }
+          }
+        },
+        "confidence": { "type": "string", "enum": ["certain", "probable", "speculative"] },
+        "humanVerified": { "type": "boolean", "default": false },
+        "crossProject": { "type": "boolean", "default": false },
+        "weight": { "type": "number", "minimum": 0 }
+      }
+    },
+
+    "chain": {
+      "type": "object",
+      "required": ["chainId", "name", "path"],
+      "properties": {
+        "chainId": { "type": "string" },
+        "name": { "type": "string", "description": "业务语义名，如'创建订单'" },
+        "description": { "type": "string" },
+        "trigger": {
+          "type": "string",
+          "description": "链路起点：用户动作或定时任务"
+        },
+        "path": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "type": "string" },
+          "description": "有序 nodeId 序列，从 UI 触发到数据落库"
+        },
+        "layersSpanned": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "breakpoints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "链路中断处（未能继续推断的节点 ID）"
+        },
+        "confidence": { "type": "string", "enum": ["certain", "probable", "speculative"] }
+      }
+    }
+  }
+}
