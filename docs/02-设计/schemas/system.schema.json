@@ -4,13 +4,13 @@
   "title": "CodeAtlas System Declaration",
   "description": "系统声明：定义 Agent 的工作边界（白名单）与图谱绑定的代码版本基线。路径 .codeatlas/system.json。取代 v0.1 的 workspace.json。",
   "type": "object",
-  "required": ["schemaVersion", "systemId", "systemName", "rootDir", "scope", "versionBaseline"],
+  "required": ["schemaVersion", "systemId", "systemName", "scope", "versionBaseline"],
   "properties": {
     "schemaVersion": { "type": "string", "const": "1.0" },
     "systemId": { "type": "string", "description": "系统唯一标识，创建后不变" },
     "systemName": { "type": "string" },
     "description": { "type": "string" },
-    "rootDir": { "type": "string", "description": "工作空间根目录的绝对路径" },
+    "rootDir": { "type": "string", "description": "【可选，默认省略】系统根（容器文件夹）的绝对路径。通常无需填写——系统根可由本文件所在位置反推（.codeatlas/ 的上一级）。仅当产物目录与系统根不同级时才显式指定。写入绝对路径会使本文件换机器即失效、无法随代码分发。" },
 
     "scope": {
       "type": "object",

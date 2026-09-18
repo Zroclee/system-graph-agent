@@ -4,30 +4,30 @@
   "title": "CodeAtlas Change Set",
   "description": "变更集：增量更新的输入。由 VCS diff 得到原始变更，再沿图谱边推导出受影响范围。路径 .codeatlas/changeset.json。",
   "type": "object",
-  "required": ["schemaVersion", "changesetId", "fromBaseline", "detectedAt", "changedFiles", "impactRadius"],
+  "required": ["schemaVersion", "changesetId", "fromBaselineId", "detectedAt", "changedFiles", "impactRadius"],
   "properties": {
     "schemaVersion": { "type": "string", "const": "1.0" },
     "changesetId": { "type": "string" },
-    "fromBaseline": {
+    "fromBaselineId": {
       "type": "string",
-      "description": "起始版本基线 ID（对应 system.json 的 versionBaseline.baselineId）"
+      "description": "起始版本基线 ID（对应 system.json 的 versionBaseline.baselineId）。多仓形态下不存在单一 commitSha，故以基线 ID 锚定"
     },
-    "toCommit": {
+    "toBaselineId": {
       "type": ["string", "null"],
-      "description": "目标提交。降级模式下可为 null"
+      "description": "目标版本基线 ID。无法采集目标基线时可为 null"
     },
     "detectedAt": { "type": "string", "format": "date-time" },
 
     "changedFiles": {
       "type": "array",
       "minItems": 0,
-      "description": "原始变更文件清单，来自 git diff --name-status --find-renames",
+      "description": "原始变更文件清单。由各 VCS 仓逐仓推导后合并（git 仓走 commit diff --name-status --find-renames；无版本管理的项目走目录树哈希比对，仅产出 A/D、无法识别 R）",
       "items": {
         "type": "object",
         "required": ["projectId", "path", "status"],
         "properties": {
           "projectId": { "type": "string" },
-          "path": { "type": "string" },
+          "path": { "type": "string", "description": "★ 相对【系统根】的路径，非子仓根（不变量 I9）" },
           "status": {
             "type": "string",
             "enum": ["A", "M", "D", "R", "C"],
