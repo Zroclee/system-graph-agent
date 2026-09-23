@@ -27,11 +27,22 @@
 | D-08 | 阶段重跑 | S1–S3 增量，**S5–S7 恒全量** | 09-18 |
 | D-09 | 系统根定义 | **系统根 = 容器文件夹**（内部各项目可各自独立 VCS 仓）；`.codeatlas/` 旁挂于其下；工具仓与系统根解耦 | 09-18 |
 | D-10 | Web 画布 | **AntV G6** | 09-18 |
-| D-11 | 运行时 | **Bun**（含 install / test / build）；M0 前置验证 tree-sitter WASM，不通则退 Node 22 LTS | 09-18 |
+| D-11 | 运行时 | **Bun**（含 install / test / build）。**09-23 前置验证已通过（GO）**，定标 Bun，不写兼容层 | 09-18<br>09-23 验证 |
 | D-12 | LLM 编排 | **不接 LangChain**，自研 `LlmTask` 运行器 + OpenAI 官方 SDK | 09-18 |
 | D-13 | LLM 接入 | 本地**直连 API**，首位 Provider 为 `OpenAiCompatProvider`；**Key 只在本地进程**，绝不下发浏览器 | 09-18 |
 | D-14 | 产物版本管理 | **不内置**（原 Q13 撤回）；VCS 仅作**输入侧变更传感器** | 09-18 |
 | D-15 | 代码交付形态 | 被分析系统以**完整 Git 仓**（含提交历史）提供 | 09-18 |
+| D-16 | WASM 语法包来源 | 用**各语言官方包** `tree-sitter-<lang>`；**禁用聚合包 `tree-sitter-wasms`**（停更，段名 `dylink` ≠ `dylink.0`） | 09-23 |
+
+## 已验证的技术事实（M0，2026-09-23）
+
+- **tree-sitter WASM on Bun 1.3.14：GO**，7/7 通过，与 Node 22 结果逐项一致；**运行时定标 Bun，不写兼容层**
+- **选型栈 smoke：9/9 通过**（bun:sqlite WAL / zod 4 原生 `z.toJSONSchema` / @vue/compiler-sfc / @babel/parser / node-sql-parser / graphology / hono / clipanion / elkjs）
+- 两处实测用法约束：
+  - `node-sql-parser` **v5 起用 `astify()`**，不再是 `ast()`
+  - `elkjs` **必须显式传 `workerFactory`**（Bun 用内置 `Worker`，Node 用自带进程内 worker，`elk.bundled.js` 的自动探测两端走向相反）
+- **教训（已写为设计准则 12）**：技术验证**必须设对照组**。首次失败时 `Language.load()` 抛空消息异常，一度像 Bun 故障；用 Node 跑同一份代码同样失败，才定位到是 `tree-sitter-wasms` 依赖陈旧
+- 验证报告：`docs/03-开发/M0-前置验证报告-tree-sitter-WASM兼容性.md`
 
 ## 核心设计准则
 
@@ -46,6 +57,7 @@
 9. **路径基准永远是系统根**（不变量 I9）：不是子项目根、更不是子仓根，否则同名文件互相覆盖
 10. **不引入 LLM 编排框架**（LangChain 等），需要的那点编排自己写
 11. **密钥与产物物理隔离**：凭据只留在进程环境或系统根之外
+12. **技术验证必须设对照组**：只在目标运行时上跑，会把「依赖陈旧」误判为「运行时缺陷」
 
 完整版见 `docs/02-设计/设计-架构方案.md` 附录 A。
 
@@ -61,6 +73,8 @@
 - **Q11** 首期技术栈优先级清单（按团队实际在用栈排序）—— M2 前需定
 - **Q14** 子仓存在未提交改动（`dirty`）时的行为：拒绝运行 vs 降级记录 —— M3 前需定，倾向前者
 - **Q16** 各角色评审负责人与评审时间窗
+- **Q17** `clipanion` 锁预发布版 `4.0.0-rc.4` 还是降到稳定 3.x —— M0 内需定
+- **Q18** 布局在浏览器侧还是服务端执行 —— M5 前需定
 
 已关闭：Q9 系统根定义｜Q10 AntV G6｜Q12 本地直连 API｜Q15 完整 Git 仓
 已撤回：Q13 产物版本管理（后续再议）
